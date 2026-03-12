@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # Helpers
 # ---------------------------------------------------------------------------
 
-def load_contacts(path: str) -> list[dict]:
+def load_contacts(path: str) -> list[dict[str, str]]:
     """Return a list of {'name': str, 'phone': str} dicts from a CSV file."""
     df = pd.read_csv(path, dtype=str)
     required = {"name", "phone"}
@@ -52,7 +52,7 @@ def open_phone_link() -> "Application":
         app = Application(backend="uia").connect(title_re=".*Phone Link.*", timeout=5)
         logger.info("Connected to running Phone Link instance.")
     except Exception:
-        logger.info("Phone Link not found – launching it now…")
+        logger.info("Phone Link not found -- launching it now...")
         app = Application(backend="uia").start(
             r"explorer.exe shell:AppsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App"
         )
@@ -100,7 +100,9 @@ def search_and_select_contact(window, contact: dict) -> bool:
             control_type="Edit",
         )
         recipient_field.click_input()
-        recipient_field.type_keys(contact["phone"])
+        # Use clipboard paste so special characters like '+' are not misinterpreted
+        pyperclip.copy(contact["phone"])
+        send_keys("^v")
         time.sleep(1)
 
         # Pick the first suggestion or press Enter to confirm the raw number
@@ -161,11 +163,11 @@ def main() -> None:
     failure_count = 0
 
     for contact in contacts:
-        logger.info("Sending to %s (%s)…", contact["name"], contact["phone"])
+        logger.info("Sending to %s (%s)...", contact["name"], contact["phone"])
         try:
             start_new_conversation(window)
             if not search_and_select_contact(window, contact):
-                logger.warning("Skipping %s – contact not found.", contact["name"])
+                logger.warning("Skipping %s -- contact not found.", contact["name"])
                 failure_count += 1
                 send_keys("{ESCAPE}")
                 time.sleep(1)
