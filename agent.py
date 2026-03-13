@@ -70,12 +70,23 @@ def get_main_window(app: "Application"):
 
 def navigate_to_messages(window) -> None:
     """Click the 'Messages' navigation item."""
-    try:
-        messages_nav = window.child_window(title_re="Messages", control_type="ListItem")
-        messages_nav.click_input()
-        time.sleep(1)
-    except Exception as exc:
-        raise RuntimeError("Could not find 'Messages' navigation item.") from exc
+    # Give the UI a moment to fully render before searching for navigation items.
+    time.sleep(1)
+    last_exc: Exception = RuntimeError(
+        "'Messages' navigation item not found with any known control type."
+    )
+    for ctrl_type in ("ListItem", "Button", "TabItem"):
+        try:
+            messages_nav = window.child_window(
+                title_re="Messages|Messagerie",
+                control_type=ctrl_type,
+            )
+            messages_nav.click_input()
+            time.sleep(1)
+            return
+        except Exception as exc:
+            last_exc = exc
+    raise RuntimeError("Could not find 'Messages' navigation item.") from last_exc
 
 
 def start_new_conversation(window) -> None:
