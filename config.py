@@ -4,7 +4,7 @@
 CONTACTS_FILE = "contacts.csv"
 
 # The message to send to all contacts
-MESSAGE = "Bonjour, ceci est un message automatique."
+MESSAGE = "Bonjour, ceci est un message automatique pour tester mon script."
 
 # Delay between messages in seconds (to avoid being rate-limited)
 DELAY_BETWEEN_MESSAGES = 5
