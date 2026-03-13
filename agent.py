@@ -53,10 +53,13 @@ def open_phone_link() -> "Application":
         logger.info("Connected to running Phone Link instance.")
     except Exception:
         logger.info("Phone Link not found -- launching it now...")
-        app = Application(backend="uia").start(
+        Application(backend="uia").start(
             r"explorer.exe shell:AppsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App"
         )
-        time.sleep(config.UI_TIMEOUT)
+        # explorer.exe is just a launcher; connect to the actual Phone Link process
+        app = Application(backend="uia").connect(
+            title_re=".*Phone Link.*", timeout=config.UI_TIMEOUT
+        )
     return app
 
 
