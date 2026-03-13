@@ -22,6 +22,7 @@ pip install -r requirements.txt
 |---|---|---|
 | `CONTACTS_FILE` | Chemin vers le fichier CSV des contacts | `contacts.csv` |
 | `MESSAGE` | Message à envoyer | `"Bonjour, ceci est un message automatique."` |
+| `IMAGE_FILE` | Chemin vers une image à joindre (optionnel, MMS) | `""` |
 | `DELAY_BETWEEN_MESSAGES` | Délai (secondes) entre deux envois | `5` |
 | `UI_TIMEOUT` | Délai d'attente de l'interface (secondes) | `10` |
 

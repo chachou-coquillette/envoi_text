@@ -406,6 +406,234 @@ def _fill_focused_field(text: str) -> None:
     time.sleep(0.2)
 
 
+def _find_file_dialog_filename_field(dialog):
+    """Find the filename input in the system Open dialog."""
+    selectors = [
+        {"auto_id": "1148", "control_type": "Edit"},
+        {"title_re": r"File name:|Nom du fichier\s*:?.*", "control_type": "Edit"},
+    ]
+    for selector in selectors:
+        try:
+            field = dialog.child_window(**selector)
+            if field.exists(timeout=1):
+                return field
+        except Exception:
+            continue
+
+    # Fallback: pick the widest visible edit, usually the filename box.
+    best = None
+    best_width = -1
+    try:
+        for ctrl in dialog.descendants(control_type="Edit"):
+            try:
+                if not ctrl.is_visible() or not ctrl.is_enabled():
+                    continue
+                width = ctrl.rectangle().width()
+                if width > best_width:
+                    best_width = width
+                    best = ctrl
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return best
+
+
+def _find_open_dialog_address_field(dialog):
+    """Find the address/path input in the system Open dialog."""
+    selectors = [
+        {"title_re": r"Address|Adresse|Emplacement.*", "control_type": "Edit"},
+        {"auto_id": "41477", "control_type": "Edit"},
+        {"auto_id": "1001", "control_type": "Edit"},
+    ]
+    for selector in selectors:
+        try:
+            field = dialog.child_window(**selector)
+            if field.exists(timeout=1):
+                return field
+        except Exception:
+            continue
+
+    best = None
+    best_top = None
+    try:
+        dialog_rect = dialog.rectangle()
+        for ctrl in dialog.descendants(control_type="Edit"):
+            try:
+                if not ctrl.is_visible() or not ctrl.is_enabled():
+                    continue
+                rect = ctrl.rectangle()
+                if rect.top > dialog_rect.top + 130:
+                    continue
+                if best_top is None or rect.top < best_top:
+                    best = ctrl
+                    best_top = rect.top
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return best
+
+
+def _activate_window(window) -> None:
+    """Bring any window or dialog to the foreground for keyboard input."""
+    try:
+        window.restore()
+    except Exception:
+        pass
+    try:
+        window.set_focus()
+        time.sleep(0.2)
+    except Exception:
+        pass
+    try:
+        rect = window.rectangle()
+        mouse.click(button="left", coords=(rect.left + 40, rect.top + 20))
+        time.sleep(0.2)
+    except Exception:
+        pass
+    try:
+        window.set_focus()
+    except Exception:
+        pass
+
+
+def _get_open_dialog():
+    """Return the Open dialog using the most reliable backend available."""
+    deadline = time.time() + config.UI_TIMEOUT
+    while time.time() < deadline:
+        for backend in ("win32", "uia"):
+            try:
+                dialog = Desktop(backend=backend).window(title_re=r"Open|Ouvrir")
+                if dialog.exists(timeout=1):
+                    return dialog
+            except Exception:
+                continue
+        time.sleep(0.3)
+    raise RuntimeError("Open dialog not found")
+
+
+def _click_browse_this_pc_if_present(window) -> None:
+    """Click the intermediate 'Browse this PC' button shown by some Phone Link builds."""
+    selectors = [
+        {
+            "title_re": r"Browse this PC|Parcourir ce PC|Browse|Parcourir",
+            "control_type": "Button",
+        },
+        {
+            "title_re": r"Browse this PC|Parcourir ce PC|Browse|Parcourir",
+            "control_type": "ListItem",
+        },
+        {
+            "title_re": r"Browse this PC|Parcourir ce PC|Browse|Parcourir",
+            "control_type": "MenuItem",
+        },
+    ]
+
+    # Check first inside the app window, then on desktop-level popups.
+    search_roots = [window, Desktop(backend="uia")]
+    for root in search_roots:
+        for selector in selectors:
+            try:
+                candidate = root.child_window(**selector)
+                if candidate.exists(timeout=1):
+                    candidate.click_input()
+                    time.sleep(0.8)
+                    return
+            except Exception:
+                continue
+
+
+def _pick_file_in_open_dialog(dialog, image_file: Path) -> None:
+    """Select a file in the Open dialog, preferring a keyboard-first full-path flow."""
+    _activate_window(dialog)
+
+    # Preferred path: use the standard Windows accelerator for the filename field.
+    try:
+        send_keys("%n")
+        time.sleep(0.3)
+        _fill_focused_field(str(image_file))
+        time.sleep(0.2)
+        send_keys(KEY_ENTER)
+        return
+    except Exception:
+        pass
+
+    # Most Windows Open dialogs accept a full path directly in the filename box.
+    filename_field = _find_file_dialog_filename_field(dialog)
+    if filename_field is not None:
+        _fill_text_field(filename_field, str(image_file))
+        time.sleep(0.2)
+        send_keys(KEY_ENTER)
+        return
+
+    address_field = _find_open_dialog_address_field(dialog)
+    if address_field is not None:
+        _fill_text_field(address_field, str(image_file.parent))
+        time.sleep(0.2)
+        send_keys(KEY_ENTER)
+        time.sleep(0.8)
+    else:
+        # Fallback if the address bar is not exposed via UIA.
+        send_keys("%d")
+        time.sleep(0.2)
+        _fill_focused_field(str(image_file.parent))
+        send_keys(KEY_ENTER)
+        time.sleep(0.8)
+
+    # Fill filename box and confirm.
+    filename_field = _find_file_dialog_filename_field(dialog)
+    if filename_field is None:
+        raise RuntimeError("Open dialog filename field not found")
+
+    _fill_text_field(filename_field, image_file.name)
+    time.sleep(0.2)
+    send_keys(KEY_ENTER)
+
+
+def attach_image(window, image_path: str) -> None:
+    """Attach an image in compose view (for MMS) if an image path is provided."""
+    raw = (image_path or "").strip()
+    if not raw:
+        return
+
+    image_file = Path(raw)
+    if not image_file.exists():
+        raise RuntimeError(f"Image file not found: {image_file}")
+
+    # Open attachment picker.
+    attach_selectors = [
+        {"title_re": r"Attach|Joindre|Ajouter|Image|Photo|Fichier", "control_type": "Button"},
+        {"title_re": r"Attach|Joindre|Ajouter|Image|Photo|Fichier", "control_type": "SplitButton"},
+        {"auto_id": "AttachButton", "control_type": "Button"},
+    ]
+    attach_btn = None
+    for selector in attach_selectors:
+        try:
+            candidate = window.child_window(**selector)
+            if candidate.exists(timeout=1):
+                attach_btn = candidate
+                break
+        except Exception:
+            continue
+
+    if attach_btn is None:
+        raise RuntimeError("Attachment button not found in compose view")
+
+    attach_btn.click_input()
+    time.sleep(1)
+
+    # Some versions show an intermediate step before the file dialog.
+    _click_browse_this_pc_if_present(window)
+
+    dialog = _get_open_dialog()
+    dialog.wait("exists enabled visible ready", timeout=config.UI_TIMEOUT)
+
+    _pick_file_in_open_dialog(dialog, image_file)
+    # Wait for attachment preview/upload in compose area.
+    time.sleep(1.5)
+
+
 def search_and_select_contact(window, contact: dict) -> bool:
     """
     Type the contact phone number in the recipient field and select them.
@@ -489,6 +717,7 @@ def main() -> None:
                     send_keys(KEY_ESCAPE)
                     time.sleep(1)
                     continue
+                attach_image(window, getattr(config, "IMAGE_FILE", ""))
                 type_and_send_message(window, config.MESSAGE)
                 logger.info("✓ Sent to %s", contact["name"])
                 success_count += 1
