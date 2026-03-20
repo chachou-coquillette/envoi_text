@@ -4,10 +4,16 @@
 CONTACTS_FILE = "contacts.csv"
 
 # The message to send to all contacts
-MESSAGE = "Bonjour, ceci est un message automatique pour tester mon script."
+MESSAGE = (
+	"Save the date!\n"
+	"Florian et Charlotte se marient le 5 septembre 2026.\n"
+	"En attendant merci de remplir ce formulaire qui nous aidera à organiser au mieux cet évènement: https://forms.gle/FiFfyRP9AyjQA21q7\n"
+	"Nous serons ravis de vous avoir à nos côtés pour célébrer notre amour.\n"
+	"Florian et Charlotte"
+)
 
 # Optional image path to attach before sending (empty string disables attachment)
-IMAGE_FILE = r"C:\Users\Charlotte\3. Loisirs & Voyages\2026 Mariage\Save the date.gif"
+IMAGE_FILE = r"C:\Users\Charlotte\3. Loisirs & Voyages\2026 Mariage\Save the date.mp4"
 
 # Delay between messages in seconds (to avoid being rate-limited)
 DELAY_BETWEEN_MESSAGES = 5
